@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-
+import { gsap } from 'gsap';
 // Приложение PixiJS.
 const app = new PIXI.Application({
   resizeTo: window,
@@ -10,10 +10,14 @@ document.body.appendChild(app.view);
 
 // Состояние игры и выигрышные комбинации.
 let gameOver = false;
+let animate = false;
 let currentPlayer = 'X';
 let cellSize = 0;
 
+
+
 const board = Array(9).fill('');
+const activeAnimations = [];
 const winningCombinations = [
   [0, 1, 2],
   [3, 4, 5],
@@ -70,22 +74,41 @@ function createGrid() {
     boardContainer.addChild(cell);
   }
 }
+const resetButton = new PIXI.Graphics();
+const buttonText = new PIXI.Text("Restart");
 
 function createResetButton() {
-  const resetButton = new PIXI.Graphics();
+
   resetButton.eventMode = 'static';
   resetButton.cursor = 'pointer';
-
   resetButton.beginFill(0xffffff);
-  resetButton.drawRect(0, 0, 50, 50);
+  resetButton.drawRoundedRect(0, 0, 140, 60, 10);
+  resetButton.pivot.x = resetButton.width / 2;
+  resetButton.pivot.y = resetButton.height / 2;
   resetButton.endFill();
   resetButton.on('pointertap', resetGame);
-
+    buttonText.anchor.set(0.5);
+    buttonText.x = resetButton.width / 2;
+    buttonText.y = resetButton.height / 2;
+  resetButton.addChild(buttonText);
   app.stage.addChild(resetButton);
+ /* console.log(
+  "Размеры кнопки:",
+  resetButton.width,
+  resetButton.height,
+  resetButton.pivot.x,
+  resetButton.pivot.y
+);*/
 }
 
 // Перезапуск, обработка ходов и проверка результата.
 function resetGame() {
+  animate = true;
+  for (let animation of activeAnimations){
+ animation.kill()
+  animation++;
+}
+activeAnimations.length = 0;
   gameOver = false;
   board.fill('');
   currentPlayer = 'X';
@@ -93,8 +116,9 @@ function resetGame() {
 
   for (let index = 0; index < boardContainer.children.length; index++) {
     const cell = boardContainer.children[index];
-    cell.removeChildren();
-  }
+cell.removeChildren().forEach((child) => {
+    child.destroy();
+});  }
 }
 
 function onCellClick() {
@@ -147,33 +171,102 @@ function checkWinner() {
 }
 
 // Отрисовка крестика и нолика внутри клетки.
-function drawX(cell) {
-  const graphics = new PIXI.Graphics();
+function drawX(cell, animate = true) {
+  const crossContainer = new PIXI.Container();
+  const line1 = new PIXI.Graphics();
+  const line2 = new PIXI.Graphics();
+  const animation = { progress: 0 };
+  const animation2 = { progress: 0 };
+  const timeline = gsap.timeline();
+
   const crossSize = cellSize * 0.7;
   const offset = (cellSize - crossSize) / 2;
 
-  graphics.lineStyle(5, 0xff0000);
-  graphics.moveTo(offset, offset);
-  graphics.lineTo(crossSize + offset, crossSize + offset);
-  graphics.moveTo(offset, crossSize + offset);
-  graphics.lineTo(crossSize + offset, offset);
-  cell.addChild(graphics);
+  line1.lineStyle(5, 0xff0000);
+  line1.moveTo(offset, offset);
+  //line1.lineTo(crossSize + offset, crossSize + offset);
+
+   line2.lineStyle(5, 0xff0000);
+  line2.moveTo(offset, crossSize + offset);
+ // line2.lineTo(crossSize + offset, offset);
+  crossContainer.addChild(line1,line2);
+  cell.addChild(crossContainer);
+  if (animate){
+  const tween = timeline.to(animation, {
+  progress: 1,
+  duration: 0.4,
+  ease: 'none',
+  onUpdate: () => {
+    // Здесь будем обновлять линию
+    line1.clear();
+      line1.lineStyle(5, 0xff0000);
+  line1.moveTo(offset, offset);
+  line1.lineTo(crossSize*animation.progress + offset, crossSize*animation.progress + offset);
+  }
+});
+
+  const tween2 = timeline.to(animation2, {
+  progress: 1,
+  duration: 0.4,
+  ease: 'none',
+  onUpdate: () => {
+    // Здесь будем обновлять линию
+    line2.clear();
+      line2.lineStyle(5, 0xff0000);
+  line2.moveTo(offset, crossSize + offset);
+  line2.lineTo(
+    offset + crossSize * animation2.progress,
+    offset + crossSize * (1 - animation2.progress)
+);}
+},'+=0.15');
+activeAnimations.push(tween, tween2);
+}
+else{
+    line1.lineTo(crossSize + offset, crossSize + offset);
+  line2.lineTo(crossSize + offset, offset);
+
+}
 }
 
-function drawO(cell) {
+function drawO(cell, animate = true) {
   const graphics = new PIXI.Graphics();
   const center = cellSize / 2;
   const circleDiameter = cellSize * 0.7;
-
+  const animation = { progress: 0 };
   graphics.lineStyle(5, 0x0c62b3);
-  graphics.drawCircle(center, center, circleDiameter / 2);
+  //graphics.arc(center, center, circleDiameter / 2, progress, 1 );
   cell.addChild(graphics);
+  if(animate){
+  const tween = gsap.to(animation, {
+  progress: 1,
+  duration: 0.9,
+  ease: 'none',
+  onUpdate: () => {
+    // Здесь будем обновлять линию
+    graphics.clear();
+  graphics.lineStyle(5, 0x0c62b3);
+  graphics.arc(center, center, circleDiameter / 2, 0, animation.progress* Math.PI * 2 );
+  }
+});
+activeAnimations.push(tween);
+ }
+ else {
+  graphics.drawCircle(center, center, circleDiameter / 2);
+
+ }
 }
 
 // Перерисовка и размещение поля при изменении размеров окна.
 function resizeGame() {
+    animate = true;
+for (let animation of activeAnimations){
+ animation.kill()
+}
+activeAnimations.length = 0;
+
   const width = window.innerWidth;
   const height = window.innerHeight;
+  
   titleText.x = width / 2;
   statusText.x = width / 2;
 
@@ -187,11 +280,14 @@ function resizeGame() {
     cell.clear();
 
     if (board[index] === 'X') {
-      cell.removeChildren();
-      drawX(cell);
+      cell.removeChildren().forEach((child) => {
+      child.destroy();});
+      drawX(cell, false);
+
     } else if (board[index] === 'O') {
-      cell.removeChildren();
-      drawO(cell);
+      cell.removeChildren().forEach((child) => {
+      child.destroy();});
+      drawO(cell, false);
     }
 
     const row = Math.floor(index / 3);
@@ -213,7 +309,10 @@ function resizeGame() {
   boardContainer.x = width / 2;
   boardContainer.y = height / 2;
 
-  console.log('Screen:', width, height, boardSize);
+  resetButton.x = width / 2;
+  resetButton.y = height * 0.85;
+
+  console.log('SUCCESS!:', width, height, boardSize);
 }
 
 // Запуск игры и подключение обработчиков.
@@ -221,4 +320,5 @@ window.addEventListener('resize', resizeGame);
 createGrid();
 createResetButton();
 resizeGame();
+
 window.resetGame = resetGame;
