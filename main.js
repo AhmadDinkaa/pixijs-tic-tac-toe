@@ -1,4 +1,4 @@
-// 1. Импорты и инициализация PixiJS.
+// 1. Импорты, цвета, стили линий и приложение PixiJS.
 import * as PIXI from 'pixi.js';
 import { gsap } from 'gsap';
 
@@ -8,10 +8,25 @@ const COLORS = {
   cell: 0x293851,
   x: 0xb9f34c,
   o: 0xbb9aff,
-  win: 0xb9f34c,
   text: 0xffffff,
 };
 
+const STROKES = {
+  x: {
+    width: 8,
+    color: COLORS.x,
+    cap: PIXI.LINE_CAP.ROUND,
+    join: PIXI.LINE_JOIN.ROUND,
+  },
+  o: {
+    width: 8,
+    color: COLORS.o,
+    cap: PIXI.LINE_CAP.ROUND,
+    join: PIXI.LINE_JOIN.ROUND,
+  },
+};
+
+// PixiJS создаёт canvas и подстраивает размер рендера под окно.
 const app = new PIXI.Application({
   resizeTo: window,
   backgroundColor: COLORS.background,
@@ -26,7 +41,9 @@ let cellSize = 0;
 let winningCombo = null;
 let winLine = null;
 
+// Массив хранит символы клеток; счёт сохраняется между раундами.
 const board = Array(9).fill('');
+// Здесь хранятся анимации поля, которые нужно остановить при сбросе или resize.
 const activeAnimations = [];
 const winningCombinations = [
   [0, 1, 2],
@@ -83,7 +100,6 @@ const scoreStyle = new PIXI.TextStyle({
   fill: COLORS.text,
 });
 
-
 const boardBackground = new PIXI.Graphics();
 const boardContainer = new PIXI.Container();
 const decorContainer = new PIXI.Container();
@@ -109,6 +125,7 @@ const statusText = new PIXI.Text('TURN: X', statusStyle);
 statusText.y = 80;
 statusText.anchor.set(0.5);
 statusText.x = window.innerWidth / 2;
+// Порядок addChild задаёт порядок слоёв на сцене PixiJS.
 app.stage.addChild(decorContainer);
 app.stage.addChild(statusBackgroundramka);
 app.stage.addChild(statusBackground);
@@ -128,7 +145,6 @@ scoreContainer.addChild(
 );
 
 app.stage.addChild(scoreContainer);
-
 
 scoreXText.style = new PIXI.TextStyle({
   fontFamily: 'Arial',
@@ -150,7 +166,8 @@ scoreOText.style = new PIXI.TextStyle({
   fontWeight: 'bold',
   fill: COLORS.o,
 });
-// 4. Создание игрового поля и кнопок.
+
+// 4. Игровое поле и кнопка нового раунда.
 function createGrid() {
   for (let index = 0; index < 9; index++) {
     const cell = new PIXI.Graphics();
@@ -198,13 +215,20 @@ function createResetButton() {
   app.stage.addChild(resetButton);
 }
 
-// 5. Ходы, проверка победы и ничьей, перезапуск.
-function updateScore() {
-  scoreXText.text = `X: ${scores.X}`;
-  scoreDrawText.text = `DRAW: ${scores.draws}`;
-  scoreOText.text = `O: ${scores.O}`;
+function restoreButton() {
+  resetButton.alpha = 1;
+
+  gsap.to(resetButton.scale, {
+    x: 1,
+    y: 1,
+    duration: 0.12,
+    ease: 'power2.out',
+    overwrite: true,
+  });
 }
 
+// 5. Игровое состояние: ход, результат и новый раунд.
+// PixiJS передаёт нажатую клетку через this; привязка обработчика сохранена.
 function onCellClick() {
   const index = this.index;
   if (board[index] !== '' || gameOver === true) {
@@ -213,12 +237,12 @@ function onCellClick() {
 
   if (currentPlayer === 'X') {
     board[index] = 'X';
-    console.log('нажал X');
+
     drawX(this);
-    //playSound(sounds.x);
+
   } else {
     board[index] = 'O';
-    console.log('нажал O');
+
     drawO(this);
     playSound(sounds.o);
   }
@@ -227,11 +251,9 @@ function onCellClick() {
 
   if (!gameOver) {
     currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
-updateStatus(`TURN: ${currentPlayer}`, currentPlayer);
+    updateStatus(`TURN: ${currentPlayer}`, currentPlayer);
   }
 
-  console.log(board);
-  console.log('Кликнули по клетке номер:', this.index);
 }
 
 function checkWinner() {
@@ -242,7 +264,7 @@ function checkWinner() {
       board[firstIndex] === board[secondIndex] &&
       board[firstIndex] === board[thirdIndex]
     ) {
-      console.log('есть победа');
+
       updateStatus(`PLAYER ${currentPlayer} WINS!`, currentPlayer);
       gameOver = true;
       winningCombo = combination;
@@ -255,20 +277,39 @@ function checkWinner() {
       updateScore();
       playSound(sounds.win);
 
-
       return;
     }
   }
 
   if (board.every((cell) => cell !== '')) {
-    console.log('Ничья! На поле больше нет свободных мест');
-    updateStatus('DRAW!');    gameOver = true;
+
+    updateStatus('DRAW!');
+    gameOver = true;
     scores.draws++;
     animateScore(scoreDrawText);
   }
   updateScore();
 }
 
+function resetGame() {
+  winningCombo = null;
+  clearWinLine();
+
+  stopAnimations();
+
+  gameOver = false;
+  board.fill('');
+  currentPlayer = 'X';
+  updateStatus(`TURN: ${currentPlayer}`, currentPlayer);
+
+  for (let index = 0; index < boardContainer.children.length; index++) {
+    const cell = boardContainer.children[index];
+    cell.tint = 0xffffff;
+    clearCell(cell);
+  }
+}
+
+// 6. Статус игры и счёт.
 function updateStatus(message, player = null) {
   statusText.text = message;
 
@@ -279,7 +320,7 @@ function updateStatus(message, player = null) {
   } else {
     statusText.style.fill = COLORS.text;
   }
-refreshStatusPanel();
+  refreshStatusPanel();
 }
 
 function refreshStatusPanel() {
@@ -308,136 +349,34 @@ function refreshStatusPanel() {
   drawStatusPanel(panelWidth, panelHeight);
 }
 
-function playSound(sound) {
-  sound.currentTime = 0;
-  sound.play().catch(() => {});
+function drawStatusPanel(panelWidth, panelHeight) {
+  statusBackgroundramka.clear();
+  statusBackgroundramka.beginFill(COLORS.cell);
+  statusBackgroundramka.drawRoundedRect(
+    -panelWidth / 2,
+    -panelHeight / 2,
+    panelWidth,
+    panelHeight,
+    20
+  );
+  statusBackgroundramka.endFill();
+
+  statusBackground.clear();
+  statusBackground.beginFill(0x16233a);
+  statusBackground.drawRoundedRect(
+    -panelWidth / 2 + 5,
+    -panelHeight / 2 + 5,
+    panelWidth - 10,
+    panelHeight - 10,
+    16
+  );
+  statusBackground.endFill();
 }
 
-function resetGame() {
-  winningCombo = null;
-  clearWinLine();
-
-  stopAnimations();
-
-  gameOver = false;
-  board.fill('');
-  currentPlayer = 'X';
-updateStatus(`TURN: ${currentPlayer}`, currentPlayer);
-
-  for (let index = 0; index < boardContainer.children.length; index++) {
-    const cell = boardContainer.children[index];
-    cell.tint = 0xffffff;
-    clearCell(cell);
-  }
-}
-
-const STROKES = {
-  x: {
-    width: 8,
-    color: COLORS.x,
-    cap: PIXI.LINE_CAP.ROUND,
-    join: PIXI.LINE_JOIN.ROUND,
-  },
-  o: {
-    width: 8,
-    color: COLORS.o,
-    cap: PIXI.LINE_CAP.ROUND,
-    join: PIXI.LINE_JOIN.ROUND,
-  },
-  win: {
-    width: 10,
-    color: COLORS.win,
-    cap: PIXI.LINE_CAP.ROUND,
-    join: PIXI.LINE_JOIN.ROUND,
-  },
-};
-
-
-// 6. Отрисовка и анимации X, O, победных рамок и линии.
-function drawX(cell, animate = true) {
-  const crossContainer = new PIXI.Container();
-  const line1 = new PIXI.Graphics();
-  const line2 = new PIXI.Graphics();
-  const animation = { progress: 0 };
-  const animation2 = { progress: 0 };
-
-  const crossSize = cellSize * 0.7;
-  const offset = (cellSize - crossSize) / 2;
-line1.lineStyle(STROKES.x);
-line1.moveTo(offset, offset);
-line2.lineStyle(STROKES.x);
-
-line2.moveTo(offset, crossSize + offset);
-  crossContainer.addChild(line1, line2);
-  cell.addChild(crossContainer);
-
-  if (animate) {
-          const timeline = gsap.timeline();
-      timeline.call(() => playSound(sounds.x));
-    timeline.to(animation, {
-      progress: 1,
-      duration: 0.4,
-      ease: 'none',
-      onUpdate: () => {
-        line1.clear();
-line1.lineStyle(STROKES.x);
-      line1.moveTo(offset, offset);
-        line1.lineTo(
-          crossSize * animation.progress + offset,
-          crossSize * animation.progress + offset
-        );
-      },
-    });
-  timeline.call(() => playSound(sounds.x), null, '+=0.15');
-    timeline.to(animation2, {
-      progress: 1,
-      duration: 0.4,
-      ease: 'none',
-      onUpdate: () => {
-        line2.clear();
-        line2.lineStyle(STROKES.x);
-
-        line2.moveTo(offset, crossSize + offset);
-        line2.lineTo(
-          offset + crossSize * animation2.progress,
-          offset + crossSize * (1 - animation2.progress)
-        );
-      },
-    },);
-
-    activeAnimations.push(timeline);
-  } else {
-    line1.lineTo(crossSize + offset, crossSize + offset);
-    line2.lineTo(crossSize + offset, offset);
-  }
-}
-
-function drawO(cell, animate = true) {
-  const graphics = new PIXI.Graphics();
-  const center = cellSize / 2;
-  const circleDiameter = cellSize * 0.7;
-  const animation = { progress: 0 };
-
-graphics.lineStyle(STROKES.o);
-
-cell.addChild(graphics);
-
-  if (animate) {
-    const tween = gsap.to(animation, {
-      progress: 1,
-      duration: 0.9,
-      ease: 'none',
-      onUpdate: () => {
-        graphics.clear();
-        graphics.lineStyle(STROKES.o);
-
-graphics.arc(center, center, circleDiameter / 2, 0, animation.progress * Math.PI * 2);
-      },
-    });
-    activeAnimations.push(tween);
-  } else {
-    graphics.drawCircle(center, center, circleDiameter / 2);
-  }
+function updateScore() {
+  scoreXText.text = `X: ${scores.X}`;
+  scoreDrawText.text = `DRAW: ${scores.draws}`;
+  scoreOText.text = `O: ${scores.O}`;
 }
 
 function drawScoreCard(graphics, color, width, height) {
@@ -457,8 +396,119 @@ function drawScoreCard(graphics, color, width, height) {
   graphics.endFill();
 }
 
+function animateScore(textObject) {
+  gsap.killTweensOf(textObject.scale);
+
+  gsap.fromTo(
+    textObject.scale,
+    { x: 1, y: 1 },
+    {
+      x: 1.25,
+      y: 1.25,
+      duration: 0.2,
+      ease: 'power2.out',
+      yoyo: true,
+      repeat: 1,
+    }
+  );
+}
+
+// 7. Отрисовка и анимации символов и победы.
+function drawX(cell, animate = true) {
+  const crossContainer = new PIXI.Container();
+  const line1 = new PIXI.Graphics();
+  const line2 = new PIXI.Graphics();
+  const animation = { progress: 0 };
+  const animation2 = { progress: 0 };
+
+  const crossSize = cellSize * 0.7;
+  const offset = (cellSize - crossSize) / 2;
+  line1.lineStyle(STROKES.x);
+  line1.moveTo(offset, offset);
+  line2.lineStyle(STROKES.x);
+
+  line2.moveTo(offset, crossSize + offset);
+  crossContainer.addChild(line1, line2);
+  cell.addChild(crossContainer);
+
+  if (animate) {
+    // GSAP последовательно рисует две линии X и запускает их звуки.
+    const timeline = gsap.timeline();
+    timeline.call(() => playSound(sounds.x));
+    timeline.to(animation, {
+      progress: 1,
+      duration: 0.4,
+      ease: 'none',
+      onUpdate: () => {
+        line1.clear();
+        line1.lineStyle(STROKES.x);
+        line1.moveTo(offset, offset);
+        line1.lineTo(
+          crossSize * animation.progress + offset,
+          crossSize * animation.progress + offset
+        );
+      },
+    });
+    timeline.call(() => playSound(sounds.x), null, '+=0.15');
+    timeline.to(animation2, {
+      progress: 1,
+      duration: 0.4,
+      ease: 'none',
+      onUpdate: () => {
+        line2.clear();
+        line2.lineStyle(STROKES.x);
+
+        line2.moveTo(offset, crossSize + offset);
+        line2.lineTo(
+          offset + crossSize * animation2.progress,
+          offset + crossSize * (1 - animation2.progress)
+        );
+      },
+    });
+
+    activeAnimations.push(timeline);
+  } else {
+    line1.lineTo(crossSize + offset, crossSize + offset);
+    line2.lineTo(crossSize + offset, offset);
+  }
+}
+
+function drawO(cell, animate = true) {
+  const graphics = new PIXI.Graphics();
+  const center = cellSize / 2;
+  const circleDiameter = cellSize * 0.7;
+  const animation = { progress: 0 };
+
+  graphics.lineStyle(STROKES.o);
+
+  cell.addChild(graphics);
+
+  if (animate) {
+    const tween = gsap.to(animation, {
+      progress: 1,
+      duration: 0.9,
+      ease: 'none',
+      onUpdate: () => {
+        graphics.clear();
+        graphics.lineStyle(STROKES.o);
+
+        graphics.arc(center, center, circleDiameter / 2, 0, animation.progress * Math.PI * 2);
+      },
+    });
+    activeAnimations.push(tween);
+  } else {
+    graphics.drawCircle(center, center, circleDiameter / 2);
+  }
+}
+
+function getWinnerAccentColor(combination) {
+  const winnerSymbol = board[combination[0]];
+
+  return winnerSymbol === 'O' ? COLORS.o : COLORS.x;
+}
+
 function highlightWinner(combination, animate = true) {
-  // const accentColor = getWinnerAccentColor(combination);
+
   const accentColor = getWinnerAccentColor(combination);
   for (const win of combination) {
     const winnerFrame = new PIXI.Graphics();
@@ -479,11 +529,10 @@ function highlightWinner(combination, animate = true) {
     }
   }
 
-  console.log(combination);
 }
 
 function drawWinLine(combination, animate = true) {
-    const accentColor = getWinnerAccentColor(combination);
+  const accentColor = getWinnerAccentColor(combination);
 
   const firstCell = boardContainer.children[combination[0]];
   const lastCell = boardContainer.children[combination[2]];
@@ -505,12 +554,13 @@ function drawWinLine(combination, animate = true) {
       ease: 'none',
       onUpdate: () => {
         line.clear();
-line.lineStyle({
-  width: 7,
-  color: accentColor,
-  cap: PIXI.LINE_CAP.ROUND,
-  join: PIXI.LINE_JOIN.ROUND,
-});        line.moveTo(startX, startY);
+        line.lineStyle({
+          width: 7,
+          color: accentColor,
+          cap: PIXI.LINE_CAP.ROUND,
+          join: PIXI.LINE_JOIN.ROUND,
+        });
+        line.moveTo(startX, startY);
         line.lineTo(
           startX + (endX - startX) * animation.progress,
           startY + (endY - startY) * animation.progress
@@ -519,19 +569,19 @@ line.lineStyle({
     });
     activeAnimations.push(tween);
   } else {
-line.lineStyle({
-  width: 7,
-  color: accentColor,
-  cap: PIXI.LINE_CAP.ROUND,
-  join: PIXI.LINE_JOIN.ROUND,
-});    line.moveTo(startX, startY);
+    line.lineStyle({
+      width: 7,
+      color: accentColor,
+      cap: PIXI.LINE_CAP.ROUND,
+      join: PIXI.LINE_JOIN.ROUND,
+    });
+    line.moveTo(startX, startY);
     line.lineTo(endX, endY);
   }
 
-  console.log('Начало:', startX, startY);
-  console.log('Конец:', endX, endY);
 }
 
+// 8. Декоративный фон.
 function createDecorX(size, color, alpha = 0.5) {
   const text = new PIXI.Text('X', {
     fontFamily: 'Arial',
@@ -563,12 +613,6 @@ function createDecorO(size, color, alpha = 0.12) {
   return graphic;
 }
 
-function getWinnerAccentColor(combination) {
-  const winnerSymbol = board[combination[0]];
-
-  return winnerSymbol === 'O' ? COLORS.o : COLORS.x;
-}
-
 function drawBackgroundDecor(width, height, isLandscape) {
   decorContainer.removeChildren().forEach((child) => child.destroy());
 
@@ -591,7 +635,7 @@ function drawBackgroundDecor(width, height, isLandscape) {
     o1.position.set(width * 0.05, height * 0.10);
 
     const o2 = createDecorO(150, COLORS.o, 0.08);
-    o2.position.set(width * 0.68, height * 0.72);  
+    o2.position.set(width * 0.68, height * 0.72);
 
     const x1 = createDecorX(150, COLORS.x, 0.09);
     x1.position.set(width * 0.68, height * 0.15);
@@ -603,61 +647,14 @@ function drawBackgroundDecor(width, height, isLandscape) {
   }
 }
 
-function restoreButton() {
-  resetButton.alpha = 1;
-
-  gsap.to(resetButton.scale, {
-    x: 1,
-    y: 1,
-    duration: 0.12,
-    ease: 'power2.out',
-    overwrite: true,
-  });
+// 9. Звук, очистка графики и управление анимациями.
+// Повторный запуск начинается с начала; отказ браузера в воспроизведении игнорируется.
+function playSound(sound) {
+  sound.currentTime = 0;
+  sound.play().catch(() => {});
 }
 
-function animateScore(textObject) {
-  gsap.killTweensOf(textObject.scale);
-
-  gsap.fromTo(
-    textObject.scale,
-    { x: 1, y: 1 },
-    {
-      x: 1.25,
-      y: 1.25,
-      duration: 0.2,
-      ease: 'power2.out',
-      yoyo: true,
-      repeat: 1,
-    }
-  );
-}
-
-function drawStatusPanel(panelWidth, panelHeight) {
-  statusBackgroundramka.clear();
-  statusBackgroundramka.beginFill(COLORS.cell);
-  statusBackgroundramka.drawRoundedRect(
-    -panelWidth / 2,
-    -panelHeight / 2,
-    panelWidth,
-    panelHeight,
-    20
-  );
-  statusBackgroundramka.endFill();
-
-  statusBackground.clear();
-  statusBackground.beginFill(0x16233a);
-  statusBackground.drawRoundedRect(
-    -panelWidth / 2 + 5,
-    -panelHeight / 2 + 5,
-    panelWidth - 10,
-    panelHeight - 10,
-    16
-  );
-  statusBackground.endFill();
-}
-
-// 7. Вспомогательные функции и управление GSAP-анимациями.
-// Удаляем содержимое клетки одинаково при Restart и Resize.
+// Удаляем и уничтожаем дочернюю графику, сохраняя саму клетку и её события.
 function clearCell(cell) {
   cell.removeChildren().forEach((child) => {
     child.destroy();
@@ -694,17 +691,17 @@ function animateIntro() {
     y: statusText.y - 15,
     duration: 0.4,
     ease: 'power2.out',
-  }, '-=0.2');
+    }, '-=0.2');
 }
 
-// 8. Адаптивность и обработка изменения размера окна.
-
+// 10. Адаптивная компоновка и перерисовка.
 function resizeGame() {
   stopAnimations();
   clearWinLine();
 
   const width = window.innerWidth;
   const height = window.innerHeight;
+  // Ориентация определяет две существующие схемы расположения элементов.
   const isLandscape = width > height;
 
   const gap = 5;
@@ -787,23 +784,23 @@ function resizeGame() {
   const layoutGap = isLandscape ? 12 : 10;
 
   const fixedHeight =
-    titleHeight +
-    statusHeight +
-    scoreHeight +
-    buttonHeight +
-    layoutGap * 4;
+  titleHeight +
+  statusHeight +
+  scoreHeight +
+  buttonHeight +
+  layoutGap * 4;
 
   const boardSize = isLandscape
-    ? Math.min(
-        rightWidth - margin * 2 - padding * 2,
-        height - margin * 2 - padding * 2,
-        450
-      )
-    : Math.min(
-        width - margin * 2 - padding * 2,
-        height - fixedHeight - margin * 2 - padding * 2,
-        450
-      );
+  ? Math.min(
+    rightWidth - margin * 2 - padding * 2,
+    height - margin * 2 - padding * 2,
+    450
+  )
+  : Math.min(
+    width - margin * 2 - padding * 2,
+    height - fixedHeight - margin * 2 - padding * 2,
+    450
+  );
 
   cellSize = Math.max(1, (boardSize - gap * 2) / 3);
 
@@ -811,7 +808,7 @@ function resizeGame() {
   const gridHeight = 3 * cellSize + 2 * gap;
   const panelBoardSize = gridHeight + padding * 2;
 
-  // 5. Перерисовываем клетки
+  // 5. Восстанавливаем символы из board без повторных анимаций и звуков.
   for (let index = 0; index < 9; index++) {
     const cell = boardContainer.children[index];
 
@@ -930,8 +927,7 @@ function resizeGame() {
   drawBackgroundDecor(width, height, isLandscape);
 }
 
-
-// 9. Инициализация и запуск игры.
+// 11. Подключение событий и запуск игры.
 window.addEventListener('resize', resizeGame);
 createGrid();
 createResetButton();
