@@ -61,9 +61,9 @@ const scores = {
   draws: 0,
 };
 const sounds = {
-  x: new Audio('/sounds/x.mp3'),
-  o: new Audio('/sounds/o.mp3'),
-  win: new Audio('/sounds/win.mp3'),
+  x: new Audio(`${import.meta.env.BASE_URL}sounds/x.mp3'),
+  o: new Audio(`${import.meta.env.BASE_URL}sounds/o.mp3'),
+  win: new Audio(`${import.meta.env.BASE_URL}sounds/win.mp3'),
 };
 sounds.x.volume = 0.35;
 sounds.o.volume = 0.25;
